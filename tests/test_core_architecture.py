@@ -17,9 +17,6 @@ from grapheme_kit.core import (
     BaseScriptProfile,
     BaseScriptProcessor,
     BaseMetric,
-    BaseDistanceMetric,
-    BaseSimilarityMetric,
-    BaseEvaluationMetric,
 )
 
 

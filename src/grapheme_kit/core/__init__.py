@@ -14,12 +14,7 @@ from grapheme_kit.core.decomposer import BaseDecomposer, IndicDecomposer
 from grapheme_kit.core.profile import BaseScriptProfile
 from grapheme_kit.core.processor import BaseScriptProcessor
 from grapheme_kit.core.registry import ScriptRegistry, registry
-from grapheme_kit.metrics.base import (
-    BaseMetric,
-    BaseDistanceMetric,
-    BaseSimilarityMetric,
-    BaseEvaluationMetric,
-)
+from grapheme_kit.metrics.base import BaseMetric
 
 __all__ = [
     "BaseNormalizer",
@@ -39,7 +34,4 @@ __all__ = [
     "ScriptRegistry",
     "registry",
     "BaseMetric",
-    "BaseDistanceMetric",
-    "BaseSimilarityMetric",
-    "BaseEvaluationMetric",
 ]

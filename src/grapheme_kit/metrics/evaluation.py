@@ -11,7 +11,7 @@ from sacrebleu.metrics.chrf import CHRF
 from sacrebleu.metrics.helpers import extract_word_ngrams
 
 from grapheme_kit.graphemizer import Graphemizer
-from grapheme_kit.metrics.base import BaseEvaluationMetric
+from grapheme_kit.metrics.base import BaseMetric
 
 
 def extract_all_grapheme_ngrams(
@@ -42,7 +42,7 @@ class _CERMeta(abc.ABCMeta):
         return super().__call__(*args, **kwargs)
 
 
-class CER(BaseEvaluationMetric, metaclass=_CERMeta):
+class CER(BaseMetric, metaclass=_CERMeta):
     """Character Error Rate (CER) computed at the grapheme cluster level.
     
     Can be used both as a class:
@@ -62,7 +62,7 @@ class CER(BaseEvaluationMetric, metaclass=_CERMeta):
         return dist / len(ref_graphemes)
 
 
-class GraphemeCHRF(CHRF, BaseEvaluationMetric):
+class GraphemeCHRF(CHRF, BaseMetric):
     """Computes the chrF(++) metric at the grapheme cluster level."""
 
     def compute(self, hypothesis: str, reference: Union[str, Sequence[str]]) -> float:
@@ -123,7 +123,7 @@ class GraphemeCHRF(CHRF, BaseEvaluationMetric):
         return best_stats
 
 
-class CharBLEU(BaseEvaluationMetric):
+class CharBLEU(BaseMetric):
     """Grapheme-aware CharBLEU metric (character-level BLEU)."""
 
     def compute(

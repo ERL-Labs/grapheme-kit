@@ -2,10 +2,7 @@
 
 import pytest
 from grapheme_kit import (
-    BaseDistanceMetric,
-    BaseEvaluationMetric,
     BaseMetric,
-    BaseSimilarityMetric,
     CER,
     CharBLEU,
     DamerauLevenshtein,
@@ -26,37 +23,21 @@ from grapheme_kit import (
 
 
 class TestMetricsOOPHierarchy:
-    def test_base_metrics_inheritance(self):
-        assert issubclass(BaseDistanceMetric, BaseMetric)
-        assert issubclass(BaseSimilarityMetric, BaseMetric)
-        assert issubclass(BaseEvaluationMetric, BaseMetric)
+    def test_concrete_metrics_inherit_directly_from_base_metric(self):
+        metric_classes = (
+            Levenshtein,
+            Hamming,
+            DamerauLevenshtein,
+            Jaro,
+            JaroWinkler,
+            LCS,
+            CER,
+            GraphemeCHRF,
+            CharBLEU,
+        )
 
-    def test_distance_metrics_inheritance(self):
-        lev = Levenshtein()
-        ham = Hamming()
-        dam = DamerauLevenshtein()
-
-        assert isinstance(lev, BaseDistanceMetric)
-        assert isinstance(ham, BaseDistanceMetric)
-        assert isinstance(dam, BaseDistanceMetric)
-
-    def test_similarity_metrics_inheritance(self):
-        j = Jaro()
-        jw = JaroWinkler()
-        lcs = LCS()
-
-        assert isinstance(j, BaseSimilarityMetric)
-        assert isinstance(jw, BaseSimilarityMetric)
-        assert isinstance(lcs, BaseSimilarityMetric)
-
-    def test_evaluation_metrics_inheritance(self):
-        cer = CER()
-        chrf = GraphemeCHRF()
-        bleu = CharBLEU()
-
-        assert isinstance(cer, BaseEvaluationMetric)
-        assert isinstance(chrf, BaseEvaluationMetric)
-        assert isinstance(bleu, BaseEvaluationMetric)
+        for metric_class in metric_classes:
+            assert issubclass(metric_class, BaseMetric)
 
 
 class TestMetricsComputationParity:

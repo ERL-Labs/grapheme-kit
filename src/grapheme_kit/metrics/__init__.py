@@ -1,11 +1,6 @@
 """Metrics subpackage exporting distance, similarity, and evaluation metrics."""
 
-from grapheme_kit.metrics.base import (
-    BaseMetric,
-    BaseDistanceMetric,
-    BaseSimilarityMetric,
-    BaseEvaluationMetric,
-)
+from grapheme_kit.metrics.base import BaseMetric
 from grapheme_kit.metrics.distance import (
     Levenshtein,
     Hamming,
@@ -25,9 +20,6 @@ from grapheme_kit.metrics.evaluation import (
 
 __all__ = [
     "BaseMetric",
-    "BaseDistanceMetric",
-    "BaseSimilarityMetric",
-    "BaseEvaluationMetric",
     "Levenshtein",
     "Hamming",
     "DamerauLevenshtein",

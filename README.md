@@ -132,7 +132,7 @@ compose(decompose("ನಮಸ್ಕಾರ")) == "ನಮಸ್ಕಾರ"      # Tr
 2. **Reusable Indic Engines**: `IndicComposer`, `IndicDecomposer`, `RuleBasedSegmenter`, `UnicodeNormalizer`.
 3. **Script Plugins (`grapheme_kit.scripts`)**: Isolated implementations for `tamil`, `sinhala`, `devanagari`, `malayalam`, `kannada`, and `generic`.
 4. **Script Registry (`ScriptRegistry`)**: Automatic script detection, alias resolution, and dynamic plugin registration.
-5. **OOP Metrics Hierarchy (`grapheme_kit.metrics`)**: Language-independent distance, similarity, and evaluation metrics operating directly on grapheme units.
+5. **Metric Base Contract (`grapheme_kit.metrics`)**: Concrete distance, similarity, and evaluation metrics inherit directly from the single `BaseMetric` abstraction.
 
 ### Supported Scripts Matrix
 

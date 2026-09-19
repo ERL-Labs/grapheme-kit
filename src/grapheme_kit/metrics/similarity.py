@@ -4,24 +4,24 @@ from __future__ import annotations
 
 import textdistance
 from grapheme_kit.graphemizer import Graphemizer
-from grapheme_kit.metrics.base import BaseSimilarityMetric
+from grapheme_kit.metrics.base import BaseMetric
 
 
-class Jaro(BaseSimilarityMetric):
+class Jaro(BaseMetric):
     """Grapheme-aware Jaro similarity metric."""
 
     def compute(self, s1: str, s2: str) -> float:
         return float(textdistance.jaro.similarity(list(Graphemizer(s1)), list(Graphemizer(s2))))
 
 
-class JaroWinkler(BaseSimilarityMetric):
+class JaroWinkler(BaseMetric):
     """Grapheme-aware Jaro-Winkler similarity metric."""
 
     def compute(self, s1: str, s2: str) -> float:
         return float(textdistance.jaro_winkler.similarity(list(Graphemizer(s1)), list(Graphemizer(s2))))
 
 
-class LCS(BaseSimilarityMetric):
+class LCS(BaseMetric):
     """Grapheme-aware Longest Common Subsequence (LCS) metric."""
 
     def compute(self, s1: str, s2: str) -> int:

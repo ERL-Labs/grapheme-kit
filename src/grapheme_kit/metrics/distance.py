@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import textdistance
 from grapheme_kit.graphemizer import Graphemizer
-from grapheme_kit.metrics.base import BaseDistanceMetric
+from grapheme_kit.metrics.base import BaseMetric
 
 
-class Levenshtein(BaseDistanceMetric):
+class Levenshtein(BaseMetric):
     """Grapheme-aware Levenshtein distance metric.
     
     Computes minimum edit distance (insertions, deletions, substitutions)
@@ -18,7 +18,7 @@ class Levenshtein(BaseDistanceMetric):
         return textdistance.levenshtein.distance(list(Graphemizer(s1)), list(Graphemizer(s2)))
 
 
-class Hamming(BaseDistanceMetric):
+class Hamming(BaseMetric):
     """Grapheme-aware Hamming distance metric.
     
     Computes number of positions with differing graphemes.
@@ -28,7 +28,7 @@ class Hamming(BaseDistanceMetric):
         return textdistance.hamming.distance(list(Graphemizer(s1)), list(Graphemizer(s2)))
 
 
-class DamerauLevenshtein(BaseDistanceMetric):
+class DamerauLevenshtein(BaseMetric):
     """Grapheme-aware Damerau-Levenshtein distance metric.
     
     Accounts for insertions, deletions, substitutions, and transpositions of adjacent graphemes.
