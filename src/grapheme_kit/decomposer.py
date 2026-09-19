@@ -1,36 +1,30 @@
-import re
+"""Grapheme decomposition for Indic and multi-script text with registry-backed dispatch."""
+
+from __future__ import annotations
+
+import grapheme
+from grapheme_kit.core.registry import registry
 from grapheme_kit.graphemizer import Graphemizer
-from grapheme import graphemes
+from grapheme_kit.scripts import register_builtin_scripts
+from grapheme_kit.scripts.sinhala.decomposer import SinhalaDecomposer
+from grapheme_kit.scripts.tamil.decomposer import TamilDecomposer
+
+# Ensure built-ins are registered
+register_builtin_scripts()
+
 
 class Decomposer:
-    """
-    A class to handle the grapheme decomposition and composition for Sinhala and Tamil text.
-    It encapsulates language-specific phonetic rules, allowing for proper character-level
-    transformations needed for NLP tokenization and metric evaluation.
+    """A class to handle grapheme decomposition for Indic and multi-script text.
+    Maintains backward compatibility while delegating to script-specific decomposers.
     """
 
-    SINHALA_VOWELS = [
-        'අ', 'ආ', 'ඇ', 'ඈ', 'ඉ', 'ඊ', 'උ', 'ඌ',
-        'ඍ', 'ඎ', 'එ', 'ඒ', 'ඓ', 'ඔ', 'ඕ', 'ඖ',
-        'අං', 'අඃ',
-    ]
-
-    SINHALA_ACCENT_SYMBOLS = [
-        '', 'ා', 'ැ', 'ෑ', 'ի', 'ී', 'ු', 'ූ', 'ෘ',
-        'ෲ', 'ෙ', 'ේ', 'ෛ', 'ො', 'ෝ', 'ෞ',
-        'ං', 'ඃ'
-    ]
-
-    # specifc for sinhala
-    ZWJ_CHARS = ['ක්ව්', 'ක්ෂ්', 'ග්ධ්', 'ට්ඨ්', 'ත්ව්', 'ත්ථ්', 'ද්ධ්', 'න්ථ්', 'න්ද්', 'න්ධ්', 'ර්', 'ය්']
+    SINHALA_VOWELS = SinhalaDecomposer.SINHALA_VOWELS
+    SINHALA_ACCENT_SYMBOLS = SinhalaDecomposer.SINHALA_ACCENT_SYMBOLS
+    ZWJ_CHARS = SinhalaDecomposer.ZWJ_CHARS
 
     TAMIL_VOWELS = ["அ", "ஆ", "இ", "ஈ", "உ", "ஊ", "எ", "ஏ", "ஐ", "ஒ", "ஓ", "ஔ"]
     TAMIL_ACCENT_SYMBOLS = ["", "ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ"]
 
-    # Tamil consonants (mei) occupy U+0B95 (க) .. U+0BB9 (ஹ). Everything else
-    # in the Tamil block is not a consonant -- the aytham ஃ, the digits ௦-௯,
-    # the numeric signs ௰-௺, ௐ, and any combining sign standing on its own --
-    # so it has no mei + uyir split and decomposes to itself.
     TAMIL_CONSONANT_FIRST = "க"
     TAMIL_CONSONANT_LAST = "ஹ"
 
@@ -43,78 +37,56 @@ class Decomposer:
 
     @staticmethod
     def _is_sinhala(chars: str) -> bool:
-        """Check if all characters in the string are Sinhala characters or ZWJ based on Unicode range."""
+        """Check if all characters in the string are Sinhala characters or ZWJ."""
         if not chars:
             return False
-        return all('\u0D80' <= c <= '\u0DFF' or c == '\u200d' for c in chars)
+        return all("\u0D80" <= c <= "\u0DFF" or c == "\u200d" for c in chars)
 
     @staticmethod
     def _is_tamil(chars: str) -> bool:
-        """Check if all characters in the string are Tamil characters or ZWJ based on Unicode range."""
+        """Check if all characters in the string are Tamil characters or ZWJ."""
         if not chars:
             return False
-        return all('\u0B80' <= c <= '\u0BFF' or c == '\u200d' for c in chars)
-
+        return all("\u0B80" <= c <= "\u0BFF" or c == "\u200d" for c in chars)
 
     @classmethod
     def _decompose_sinhala_character(cls, char: str) -> list[str]:
-        base_char = '්'
-
-        if char in cls.SINHALA_VOWELS:
-            return [char, ""]
-
-        if len(char) == 1:
-            return [char + base_char, cls.SINHALA_VOWELS[0]]
-        elif len(char) == 2 and char[1] in cls.SINHALA_ACCENT_SYMBOLS:
-            return [char[0] + base_char, cls.SINHALA_VOWELS[cls.SINHALA_ACCENT_SYMBOLS.index(char[1])]]
-        elif '\u200d' in char:
-            newchar = char[char.find('\u200d') + 1:]
-            return [char[0] + base_char] + cls._decompose_sinhala_character(newchar)
-        else:
-            return [char]
+        proc = registry.get("sinhala")
+        if proc and isinstance(proc.decomposer, SinhalaDecomposer):
+            return proc.decomposer._decompose_character(char)
+        return SinhalaDecomposer()._decompose_character(char)
 
     @classmethod
     def _decompose_tamil_character(cls, char: str) -> list[str]:
-        base_char = '்'
-
-        if char in cls.TAMIL_VOWELS:
-            return [char, ""]
-
-        # Already a complete grapheme with no consonant to split off: leave it be.
-        if not cls._is_tamil_consonant(char):
-            return [char]
-
-        if len(char) == 1:
-            return [char + base_char, cls.TAMIL_VOWELS[0]]
-        elif len(char) == 2 and char[1] == base_char:
-            return [char]
-        elif len(char) == 2 and char[1] in cls.TAMIL_ACCENT_SYMBOLS:
-            return [char[0] + base_char, cls.TAMIL_VOWELS[cls.TAMIL_ACCENT_SYMBOLS.index(char[1])]]
-        else:
-            gr = list(graphemes(char))
-            if len(gr) == 2:
-                return cls._decompose_tamil_character(gr[0]) + cls._decompose_tamil_character(gr[1])
-            raise ValueError("Not a valid single Tamil character grapheme!")
+        proc = registry.get("tamil")
+        if proc and isinstance(proc.decomposer, TamilDecomposer):
+            return proc.decomposer._decompose_character(char)
+        return TamilDecomposer()._decompose_character(char)
 
     @classmethod
     def decompose(cls, text: str) -> str:
-        """
-        Decomposes Sinhala and Tamil strings into fundamental phonetic sequences.
-        Punctuations and spaces are unaffected.
-        """
+        """Decomposes Indic strings into fundamental phonetic sequences."""
+        if not text:
+            return ""
+
         gr = list(Graphemizer(text))
-        new_string = ""
+        new_string: list[str] = []
+
         for each_char in gr:
             if cls._is_sinhala(each_char):
-                new_string += "".join(cls._decompose_sinhala_character(each_char))
+                new_string.append("".join(cls._decompose_sinhala_character(each_char)))
             elif cls._is_tamil(each_char):
-                new_string += "".join(cls._decompose_tamil_character(each_char))
+                new_string.append("".join(cls._decompose_tamil_character(each_char)))
             else:
-                new_string += each_char
+                proc = registry.get_processor_for_char(each_char)
+                if proc is not None and proc.name not in ("generic", "tamil", "sinhala"):
+                    new_string.append(proc.decompose(each_char))
+                else:
+                    new_string.append(each_char)
 
-        return new_string
+        return "".join(new_string)
 
 
-# For backward compatibility / ease of use directly from the module
 def decompose(text: str) -> str:
+    """Public helper function for grapheme decomposition."""
     return Decomposer.decompose(text)

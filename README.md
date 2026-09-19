@@ -101,13 +101,81 @@ charbleu("the quick brown fox", "the quick red fox")  # 0.7086
 ```
 
 ### Decompose / Compose
-Phonetic decomposition and composition (currently supported for select Indic scripts like Tamil and Sinhala):
+Phonetic decomposition and composition across Indic scripts (Tamil, Sinhala, Devanagari/Hindi, Malayalam, Kannada):
 ```python
 from grapheme_kit import decompose, compose
 
-decompose("කා")                   # 'ක්ආ'
-compose("ක්ආ")                    # 'කා'
-compose(decompose("வணக்கம்")) == "வணக்கம்"  # True
+# Sinhala
+decompose("කා")                                # 'ක්ආ'
+compose("ක්ආ")                                 # 'කා'
+
+# Tamil
+compose(decompose("வணக்கம்")) == "வணக்கம்"       # True
+
+# Hindi / Devanagari
+decompose("किताब")                             # 'क्इत्आब्अ'
+compose("क्इत्आब्अ")                           # 'किताब'
+compose(decompose("भारत")) == "भारत"           # True
+
+# Malayalam & Kannada
+compose(decompose("നമസ്കാരം")) == "നമസ്കാരം"    # True
+compose(decompose("ನಮಸ್ಕಾರ")) == "ನಮಸ್ಕಾರ"      # True
+```
+
+---
+
+## Extensible Script-Aware Architecture
+
+`grapheme-kit` is built on a modular, 5-layer object-oriented architecture designed for easy extension to new scripts without touching core logic:
+
+1. **Core Contracts (`grapheme_kit.core`)**: `BaseNormalizer`, `BaseSegmenter`, `BaseComposer`, `BaseDecomposer`, `BaseScriptProfile`, `BaseScriptProcessor`.
+2. **Reusable Indic Engines**: `IndicComposer`, `IndicDecomposer`, `RuleBasedSegmenter`, `UnicodeNormalizer`.
+3. **Script Plugins (`grapheme_kit.scripts`)**: Isolated implementations for `tamil`, `sinhala`, `devanagari`, `malayalam`, `kannada`, and `generic`.
+4. **Script Registry (`ScriptRegistry`)**: Automatic script detection, alias resolution, and dynamic plugin registration.
+5. **Metric Base Contract (`grapheme_kit.metrics`)**: Concrete distance, similarity, and evaluation metrics inherit directly from the single `BaseMetric` abstraction.
+
+### Supported Scripts Matrix
+
+| Script | Languages | Unicode Range | Normalizer | Segmenter | Compose / Decompose |
+|---|---|---|:---:|:---:|:---:|
+| **Tamil** | Tamil | `U+0B80 - U+0BFF` | ✅ | ✅ | ✅ |
+| **Sinhala** | Sinhala | `U+0D80 - U+0DFF` | ✅ | ✅ | ✅ |
+| **Devanagari** | Hindi, Sanskrit, Marathi, Nepali | `U+0900 - U+097F` | ✅ | ✅ | ✅ |
+| **Malayalam** | Malayalam | `U+0D00 - U+0D7F` | ✅ | ✅ | ✅ |
+| **Kannada** | Kannada | `U+0C80 - U+0CFF` | ✅ | ✅ | ✅ |
+| **Generic** | Latin, Arabic, Hebrew, Burmese, etc. | All Unicode | ✅ | ✅ | ✅ (Pass-through) |
+
+### Adding a New Script in 4 Steps
+
+```python
+from grapheme_kit.core import BaseScriptProfile, BaseScriptProcessor, UnicodeNormalizer, UnicodeSegmenter, IndicComposer, IndicDecomposer, registry
+
+# 1. Define script profile
+profile = BaseScriptProfile(
+    name="telugu",
+    unicode_ranges=[(0x0C00, 0x0C7F)],
+    virama="్",
+    inherent_vowel="అ",
+    consonants=["క", "ఖ", "గ", ...],
+    vowels=["అ", "ఆ", "ఇ", ...],
+    dependent_vowel_signs=["", "ా", "ి", ...],
+)
+
+# 2. Assemble processor
+processor = BaseScriptProcessor(
+    profile=profile,
+    normalizer=UnicodeNormalizer(),
+    segmenter=UnicodeSegmenter(),
+    composer=IndicComposer(profile),
+    decomposer=IndicDecomposer(profile),
+)
+
+# 3. Register into global registry
+registry.register(processor, aliases=["te"])
+
+# 4. Ready to use immediately!
+from grapheme_kit import Graphemizer, decompose, compose
+compose(decompose("తెలుగు")) == "తెలుగు"  # True
 ```
 
 ---

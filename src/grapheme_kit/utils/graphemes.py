@@ -1,36 +1,39 @@
-import grapheme
+"""Standardized Grapheme Clustering delegating to script segmenter rules."""
 
+from __future__ import annotations
+
+import grapheme
+from grapheme_kit.core.registry import registry
+from grapheme_kit.scripts import register_builtin_scripts
+
+# Ensure built-in scripts are registered
+register_builtin_scripts()
 
 
 class GraphemeSplitter:
+    """Standardized Grapheme Clustering class.
+    Extends 'grapheme' library to handle Indic conjuncts (e.g. க்ஷ, ஸ்ரீ, ஶ்ரீ, क्ष, त्र, ज्ञ, श्र)
+    and Sinhala ZWJ sequences.
     """
-    Standardized Grapheme Clustering class.
-    Extends 'grapheme' library to handle "க்ஷ", "ஸ்ரீ", "ஶ்ரீ" and sinhala ZWJ.
-    """
+
     @staticmethod
     def split(string: str) -> list[str]:
-        """
-        Returns a list of grapheme clusters from the given string.
-        """
-
-
-        if not string:
+        """Returns a list of grapheme clusters from the given string."""
+        if not string or string is None:
             return []
 
-        # Optimization: Only run merge logic if problematic clusters exist
-        #if not ("க்ஷ" in string or "ஸ்ரீ" in string or "ஶ்ரீ" in string):
-        #    return list(grapheme.graphemes(string))
-
         original_clusters = list(grapheme.graphemes(string))
-        result = []
+        result: list[str] = []
         i = 0
-        while i < len(original_clusters):
+        n = len(original_clusters)
+
+        while i < n:
             current = original_clusters[i]
 
-            # Look ahead for merging opportunities
-            if i < len(original_clusters) - 1:
+            if i < n - 1:
                 next_cluster = original_clusters[i + 1]
 
+                # Tamil conjunct merges
                 # Case 1: க் + ஷ... -> க்ஷ...
                 if current == "க்" and next_cluster.startswith("ஷ"):
                     result.append(current + next_cluster)
@@ -49,27 +52,44 @@ class GraphemeSplitter:
                     i += 2
                     continue
 
-                # for sinhala graphemes
+                # Devanagari conjunct merges
+                if current == "क्" and next_cluster.startswith("ष"):
+                    result.append(current + next_cluster)
+                    i += 2
+                    continue
+                if current == "त्" and next_cluster.startswith("र"):
+                    result.append(current + next_cluster)
+                    i += 2
+                    continue
+                if current == "ज्" and next_cluster.startswith("ञ"):
+                    result.append(current + next_cluster)
+                    i += 2
+                    continue
+                if current == "श्" and next_cluster.startswith("र"):
+                    result.append(current + next_cluster)
+                    i += 2
+                    continue
 
+                # Sinhala ZWJ sequence handling
                 if "\u200d" in current:
-                  if current == "ර්\u200d":
-                    current='ර්'
-                    original_clusters[i] = current
-                  i+=1
-                  x=current
+                    if current == "ර්\u200d":
+                        current = "ර්"
+                        original_clusters[i] = current
+                    i += 1
+                    x = current
 
-                  while "\u200d" in original_clusters[i-1]:
-                    x+=original_clusters[i]
-                    i+=1
-                  result.append(x)
-                  continue
+                    while i < n and "\u200d" in original_clusters[i - 1]:
+                        x += original_clusters[i]
+                        i += 1
+                    result.append(x)
+                    continue
 
-            # No merge opportunity, add the current cluster
-            if i == len(original_clusters)-1 and "\u200d" in current:
-              new=current.replace("\u200d","")
-              result.append(new)
+            # End-of-string trailing ZWJ cleanup (Sinhala)
+            if i == n - 1 and "\u200d" in current:
+                new = current.replace("\u200d", "")
+                result.append(new)
             else:
-              result.append(current)
+                result.append(current)
             i += 1
 
         return result

@@ -1,110 +1,122 @@
+"""Grapheme composition for Indic and multi-script text with registry-backed dispatch."""
+
+from __future__ import annotations
+
+from grapheme_kit.core.registry import registry
 from grapheme_kit.graphemizer import Graphemizer
+from grapheme_kit.scripts import register_builtin_scripts
+from grapheme_kit.scripts.sinhala.composer import SinhalaComposer
+from grapheme_kit.scripts.tamil.composer import TamilComposer
+
+# Ensure built-in scripts are registered
+register_builtin_scripts()
 
 
 class Composer:
+    """A class to handle grapheme composition across Indic and multi-script text.
+    Maintains backward compatibility while delegating to script-specific composers.
     """
-    A class to handle the grapheme composition for Sinhala and Tamil text.
-    """
 
-    SINHALA_VOWELS = [
-        'අ', 'ආ', 'ඇ', 'ඈ', 'ඉ', 'ඊ', 'උ', 'ඌ',
-        'ඍ', 'ඎ', 'එ', 'ඒ', 'ඓ', 'ඔ', 'ඕ', 'ඖ',
-        'අං', 'අඃ',
-    ]
-
-    SINHALA_ACCENT_SYMBOLS = [
-        '', 'ා', 'ැ', 'ෑ', 'ի', 'ී', 'ු', 'ූ', 'ෘ',
-        'ෲ', 'ෙ', 'ේ', 'ෛ', 'ො', 'ෝ', 'ෞ',
-        'ං', 'ඃ'
-    ]
-
-    # specifc for sinhala
-    ZWJ_CHARS = ['ක්ව්', 'ක්ෂ්', 'ග්ධ්', 'ට්ඨ්', 'ත්ව්', 'ත්ථ්', 'ද්ධ්', 'න්ථ්', 'න්ද්', 'න්ධ්', 'ර්', 'ය්']
+    SINHALA_VOWELS = SinhalaComposer.SINHALA_VOWELS
+    SINHALA_ACCENT_SYMBOLS = SinhalaComposer.SINHALA_ACCENT_SYMBOLS
+    ZWJ_CHARS = SinhalaComposer.ZWJ_CHARS
 
     TAMIL_VOWELS = ["அ", "ஆ", "இ", "ஈ", "உ", "ஊ", "எ", "ஏ", "ஐ", "ஒ", "ஓ", "ஔ"]
     TAMIL_ACCENT_SYMBOLS = ["", "ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ"]
 
     @staticmethod
     def _is_sinhala(chars: str) -> bool:
-        """Check if all characters in the string are Sinhala characters or ZWJ based on Unicode range."""
+        """Check if all characters in string are Sinhala characters or ZWJ."""
         if not chars:
             return False
-        return all('\u0D80' <= c <= '\u0DFF' or c == '\u200d' for c in chars)
+        return all("\u0D80" <= c <= "\u0DFF" or c == "\u200d" for c in chars)
 
     @staticmethod
     def _is_tamil(chars: str) -> bool:
-        """Check if all characters in the string are Tamil characters or ZWJ based on Unicode range."""
+        """Check if all characters in string are Tamil characters or ZWJ."""
         if not chars:
             return False
-        return all('\u0B80' <= c <= '\u0BFF' or c == '\u200d' for c in chars)
+        return all("\u0B80" <= c <= "\u0BFF" or c == "\u200d" for c in chars)
 
     @classmethod
     def _compose_tamil_character(cls, mei: str, uyir: str) -> str:
-        if not mei or mei[-1] != '்':
-            raise ValueError("Error! Not a valid mei character!")
-
-        if uyir in cls.TAMIL_VOWELS:
-            # Strip the trailing virama rather than keeping only the first code
-            # point, so multi-codepoint conjuncts (க்ஷ், ஸ்ர்) survive intact.
-            return mei[:-1] + cls.TAMIL_ACCENT_SYMBOLS[cls.TAMIL_VOWELS.index(uyir)]
-        raise ValueError("Error! Cant be merged!")
+        proc = registry.get("tamil")
+        if proc and isinstance(proc.composer, TamilComposer):
+            return proc.composer._compose_character(mei, uyir)
+        return TamilComposer()._compose_character(mei, uyir)
 
     @classmethod
     def _compose_sinhala_character(cls, base: str, vowel: str) -> str:
-        if vowel not in cls.SINHALA_VOWELS:
-            raise ValueError("Error! Not a valid Sinhala vowel!")
-
-        base_clean = base[:-1] if base.endswith('්') else base
-        if vowel == 'අ':
-            return base_clean
-        return base_clean + cls.SINHALA_ACCENT_SYMBOLS[cls.SINHALA_VOWELS.index(vowel)]
+        proc = registry.get("sinhala")
+        if proc and isinstance(proc.composer, SinhalaComposer):
+            return proc.composer._compose_sinhala_character(base, vowel)
+        return SinhalaComposer()._compose_sinhala_character(base, vowel)
 
     @classmethod
     def compose(cls, text: str) -> str:
-        """
-        Composes a decomposed sequence of Sinhala or Tamil characters
-        back into standard grapheme clusters.
-        """
+        """Composes a decomposed sequence of Indic characters back into standard graphemes."""
+        if not text:
+            return ""
+
         gr = list(Graphemizer(text))
-        new_string = ""
+        new_string: list[str] = []
         i = 0
+        n = len(gr)
 
-        while i < len(gr):
-            current_grapheme = gr[i]
+        while i < n:
+            current = gr[i]
 
-            if cls._is_tamil(current_grapheme):
-                if current_grapheme[-1] == '்' and i + 1 < len(gr) and gr[i + 1] in cls.TAMIL_VOWELS:
-                    new_string += cls._compose_tamil_character(current_grapheme, gr[i + 1])
+            if cls._is_tamil(current):
+                if current.endswith("்") and i + 1 < n and gr[i + 1] in cls.TAMIL_VOWELS:
+                    new_string.append(cls._compose_tamil_character(current, gr[i + 1]))
                     i += 2
                 else:
-                    new_string += current_grapheme
+                    new_string.append(current)
                     i += 1
 
-            elif cls._is_sinhala(current_grapheme):
-                if current_grapheme in cls.SINHALA_VOWELS:
-                    new_string += current_grapheme
+            elif cls._is_sinhala(current):
+                if current in cls.SINHALA_VOWELS:
+                    new_string.append(current)
                     i += 1
                     continue
 
-                while i + 1 < len(gr) and cls._is_sinhala(gr[i + 1]) and (
-                    gr[i] + '\u200d' + gr[i + 1] in cls.ZWJ_CHARS or gr[i + 1] in cls.ZWJ_CHARS
+                while (
+                    i + 1 < n
+                    and cls._is_sinhala(gr[i + 1])
+                    and (
+                        current + "\u200d" + gr[i + 1] in cls.ZWJ_CHARS
+                        or gr[i + 1] in cls.ZWJ_CHARS
+                    )
                 ):
-                    new_string += gr[i] + '\u200d'
+                    new_string.append(current + "\u200d")
                     i += 1
+                    current = gr[i]
 
-                if i + 1 < len(gr) and gr[i + 1] in cls.SINHALA_VOWELS:
-                    new_string += cls._compose_sinhala_character(gr[i], gr[i + 1])
+                if i + 1 < n and gr[i + 1] in cls.SINHALA_VOWELS:
+                    new_string.append(cls._compose_sinhala_character(current, gr[i + 1]))
                     i += 2
                 else:
-                    new_string += gr[i]
+                    new_string.append(current)
                     i += 1
 
             else:
-                new_string += current_grapheme
-                i += 1
+                # Check other registered scripts (Devanagari, Kannada, Malayalam)
+                proc = registry.get_processor_for_char(current)
+                if proc is not None and proc.name not in ("generic", "tamil", "sinhala"):
+                    # Process cluster with the script's composer
+                    if current.endswith(proc.profile.virama) and i + 1 < n and proc.profile.is_vowel(gr[i + 1]):
+                        new_string.append(proc.composer._compose_character(current, gr[i + 1]))
+                        i += 2
+                    else:
+                        new_string.append(current)
+                        i += 1
+                else:
+                    new_string.append(current)
+                    i += 1
 
-        return new_string
+        return "".join(new_string)
 
 
 def compose(text: str) -> str:
+    """Public helper function for grapheme composition."""
     return Composer.compose(text)
