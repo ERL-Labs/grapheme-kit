@@ -132,61 +132,179 @@ class CharBLEU(BaseMetric):
         hypothesis: str,
         max_n: int = 4,
         weights: Optional[Sequence[float]] = None,
+        epsilon: float = 0.1,
     ) -> float:
+
+        # --------------------------------------------------
+        # Handle empty strings
+        # --------------------------------------------------
+
         if not reference or not hypothesis:
             return 1.0 if reference == hypothesis else 0.0
+
+
+        # --------------------------------------------------
+        # Convert text into grapheme clusters
+        # --------------------------------------------------
 
         ref_graphemes = list(Graphemizer(reference))
         hyp_graphemes = list(Graphemizer(hypothesis))
 
+
+        # Exact match
         if ref_graphemes == hyp_graphemes:
             return 1.0
+
+
+        # --------------------------------------------------
+        # Default weights
+        # --------------------------------------------------
 
         if weights is None:
             weights = [1.0 / max_n] * max_n
 
+        if len(weights) != max_n:
+            raise ValueError(
+                f"weights must contain exactly {max_n} values"
+            )
+
+        if any(w < 0 for w in weights):
+            raise ValueError("weights cannot be negative")
+
+        if sum(weights) == 0:
+            raise ValueError("at least one weight must be greater than 0")
+
+
+        # --------------------------------------------------
+        # Calculate modified n-gram precisions
+        # --------------------------------------------------
+
         precisions: list[float] = []
-        valid_n_values: list[int] = []
+        valid_weights: list[float] = []
+
 
         for n in range(1, max_n + 1):
+
+            # Cannot create this n-gram from hypothesis
             if len(hyp_graphemes) < n:
                 continue
 
-            ref_ngrams = [tuple(ref_graphemes[i : i + n]) for i in range(len(ref_graphemes) - n + 1)]
-            hyp_ngrams = [tuple(hyp_graphemes[i : i + n]) for i in range(len(hyp_graphemes) - n + 1)]
+
+            # Create reference n-grams
+            ref_ngrams = [
+                tuple(ref_graphemes[i:i + n])
+                for i in range(len(ref_graphemes) - n + 1)
+            ]
+
+            # Create hypothesis n-grams
+            hyp_ngrams = [
+                tuple(hyp_graphemes[i:i + n])
+                for i in range(len(hyp_graphemes) - n + 1)
+            ]
+
+
+            # --------------------------------------------------
+            # Count reference n-grams
+            # --------------------------------------------------
 
             ref_ngram_counts: dict[tuple, int] = {}
+
             for ngram in ref_ngrams:
-                ref_ngram_counts[ngram] = ref_ngram_counts.get(ngram, 0) + 1
+                ref_ngram_counts[ngram] = (
+                    ref_ngram_counts.get(ngram, 0) + 1
+                )
+
+
+            # --------------------------------------------------
+            # Count clipped matches
+            # --------------------------------------------------
 
             matches = 0
+
             for ngram in hyp_ngrams:
-                if ngram in ref_ngram_counts and ref_ngram_counts[ngram] > 0:
+
+                if (
+                    ngram in ref_ngram_counts
+                    and ref_ngram_counts[ngram] > 0
+                ):
                     matches += 1
                     ref_ngram_counts[ngram] -= 1
 
-            precision = matches / len(hyp_ngrams) if hyp_ngrams else 0.0
-            if precision > 0:
-                precisions.append(precision)
-                valid_n_values.append(n)
+
+            total = len(hyp_ngrams)
+
+            precision = (
+                matches / total
+                if total > 0
+                else 0.0
+            )
+
+
+            # --------------------------------------------------
+            # Smoothing for zero precision
+            # --------------------------------------------------
+
+            if precision == 0:
+                precision = epsilon / total
+
+
+            precisions.append(precision)
+            valid_weights.append(weights[n - 1])
+
+
+        # --------------------------------------------------
+        # No usable n-grams
+        # --------------------------------------------------
 
         if not precisions:
             return 0.0
 
-        if len(hyp_graphemes) < len(ref_graphemes):
-            brevity_penalty = (
-                max(0, 1 - len(ref_graphemes) / len(hyp_graphemes)) if len(hyp_graphemes) > 0 else 0
+
+        # --------------------------------------------------
+        # Normalize weights for usable n-gram orders
+        # --------------------------------------------------
+
+        weight_sum = sum(valid_weights)
+
+        if weight_sum == 0:
+            return 0.0
+
+        normalized_weights = [
+            weight / weight_sum
+            for weight in valid_weights
+        ]
+
+
+        # --------------------------------------------------
+        # Weighted geometric mean
+        # --------------------------------------------------
+
+        log_precision_sum = sum(
+            weight * math.log(precision)
+            for precision, weight in zip(
+                precisions,
+                normalized_weights
             )
-            brevity_penalty = max(0, 1 - brevity_penalty)
-        else:
+        )
+
+        geo_mean = math.exp(log_precision_sum)
+
+
+        # --------------------------------------------------
+        # Standard BLEU brevity penalty
+        # --------------------------------------------------
+
+        r = len(ref_graphemes)
+        c = len(hyp_graphemes)
+
+        if c >= r:
             brevity_penalty = 1.0
+        else:
+            brevity_penalty = math.exp(1 - (r / c))
 
-        normalized_weights: list[float] = []
-        weight_sum = sum(weights[n - 1] for n in valid_n_values)
-        for n in valid_n_values:
-            normalized_weights.append(weights[n - 1] / weight_sum)
 
-        log_precisions = [math.log(p) * w for p, w in zip(precisions, normalized_weights)]
-        geo_mean = math.exp(sum(log_precisions))
+        # --------------------------------------------------
+        # Final CharBLEU score
+        # --------------------------------------------------
 
-        return geo_mean * brevity_penalty
+        return brevity_penalty * geo_mean
